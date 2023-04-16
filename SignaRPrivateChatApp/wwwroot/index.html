@@ -2,9 +2,86 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title></title>
+    <title>Chat</title>
 </head>
 <body>
+    <div id="loginForm">
+        <input id="login" />
+        <input id="password" type="password" />
+        <input id="btnLogin" type="button" value="Send" />
+    </div>
+    <br />
+    <div id="chatForm">
+        <input id="message" placeholder="input message" />
+        <input id="receiver" placeholder="input user name" />
+        <input type="button" id="btnSend" value="Send message" disabled />
+    </div>
 
+    <div id="chatRoom"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.js"></script>
+    <script>
+        let username;
+        let token;
+
+        let connection = new signalR.HubConnectionBuilder()
+            .withUrl("/chat", { accessTokenFactory: () => token })
+            .build();
+
+        document.getElementById("btnLogin").addEventListener("click", async () => {
+            let response = await fetch("/login", {
+                headers: { "Content-Type": "application/json" },
+                method: "POST",
+                body: JSON.stringify({
+                    login: document.getElementById("login").value,
+                    password: document.getElementById("password").value,
+                })
+            });
+
+            if (response.ok === true) {
+                let data = await response.json();
+                token = data.access_token;
+                username = data.username;
+
+                document.getElementById("btnLogin").disabled = true;
+
+                connection.start()
+                    .then(() => document.getElementById("btnSend").disabled = false)
+                    .catch(err => console.error(err.toString()));
+            }
+            else
+                console.log(`Status response: ${response.status}`);
+        });
+
+        document.getElementById("btnSend").addEventListener("click", () => {
+            let message = document.getElementById("message").value;
+            let receiver = document.getElementById("receiver").value;
+            connection.invoke("Send", receiver, message)
+                .catch(err => console.error(err));
+        });
+
+        connection.on("Receive", (username, message) => {
+            let usernameNode = document.createElement("b");
+            usernameNode.textContent = `${username}: `;
+
+            let messageNode = document.createElement("p");
+            messageNode.appendChild(usernameNode);
+            messageNode.appendChild(document.createTextNode(message));
+
+            let chatRoom = document.getElementById("chatRoom");
+            let firstChild = chatRoom.firstChild;
+            chatRoom.insertBefore(messageNode, firstChild);
+
+        });
+
+        connection.on("Notify", (message) => {
+            let messageNode = document.createElement("p");
+            messageNode.textContent = message;
+
+            let chatRoom = document.getElementById("chatRoom");
+            let firstChild = chatRoom.firstChild;
+            chatRoom.insertBefore(messageNode, firstChild);
+        });
+    </script>
 </body>
 </html>
